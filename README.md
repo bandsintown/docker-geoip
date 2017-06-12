@@ -1,3 +1,5 @@
+[![Build status](https://badge.buildkite.com/0dc51f0f59038e0e947c2be0edbc04c379081027b14fcb964e.svg)](https://buildkite.com/bandsintown/docker-geoip)
+
 # Maxmind GeoIP 
 
 ## Usage
