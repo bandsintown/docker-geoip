@@ -1,0 +1,14 @@
+# This docker-compose yml describe the services to run locally
+version: '2'
+
+# Defines the services
+services:
+
+  # Debug tests for image (packages, services, scripts)
+  test-image:
+    command: bash
+    stdin_open: true
+    tty: true
+    working_dir: /tests/image
+    volumes:
+      - ./tests:/tests

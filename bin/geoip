@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+set +x
+set -e
+
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BASE_DIR="$( cd "$BIN_DIR/.." && pwd )"
+
+# Load lib functions
+lib_functions="$BIN_DIR/functions"
+echo "Using version: ${SCRIPTS_VERSION:-stable}"
+curl -Ls -o "${lib_functions}" "https://s3.amazonaws.com/bit-ops-artifacts/scripts/lib/${SCRIPTS_VERSION:-stable}/functions"
+source "${lib_functions}"
+
+# Define valid commands
+declare -A valid_commands
+valid_commands[build]="Build the Docker image"
+valid_commands[tests]="Run the tests"
+valid_commands[debug]="Run tests in debug mode"
+valid_commands[release]="Release the Docker image to Docker Hub"
+valid_commands[help]="Display this help"
+
+declare -A valid_options
+valid_options["--version"]="The version we want to build, tests or release"
+valid_options["--versions"]="Comma separated list of versions to build, tests or release"
+valid_options["--verbose"]="Display running commands"
+valid_options["--build"]="Build images before running tests"
+valid_options["--tests"]="Comma separated list of tests to run"
+valid_options["--test"]="A single test to run (in debug mode)"
+
+help() {
+  echo "Usage: $(basename $0) COMMAND OPTIONS" >&2
+  echo
+  echo "A script to manage '$(basename $0)' image"
+  echo
+  echo "Commands:"
+  padding='                '
+  for cmd in "${!valid_commands[@]}"; do
+    description=${valid_commands[$cmd]}
+    printf "  %s %s %s\n" "$cmd" "${padding:${#cmd}}" "$description"
+  done | sort -n -k3
+  echo
+  echo "Options:"
+  for cmd in "${!valid_options[@]}"; do
+    description=${valid_options[$cmd]}
+    printf "  %s %s %s\n" "$cmd" "${padding:${#cmd}}" "$description"
+  done | sort -n -k3
+  exit 0
+}
+
+parse_opts(){
+  until [ "$1" = "" ] ; do
+    local first_char="${1:0:1}"
+    if [ "$first_char" = "-" ] ; then
+      local option="${1:1}"
+      case $option in
+        build|-build)
+            export build="true";;
+        debug|-debug)
+            export debug="true";;
+        tests|-tests)
+          shift
+          test -z $1 && help || export TESTS=(${1//,/ })
+          ;;
+        test|-test)
+          shift
+          test -z $1 && help || export TEST=$1; export TESTS=($1)
+          ;;
+        verbose|-verbose)
+          export verbose="true"
+          ;;
+        versions|-versions)
+          shift
+          test -z $1 && help || export VERSIONS=(${1//,/ })
+          ;;
+        version|-version)
+          shift
+          test -z $1 && help || export VERSION=$1; export VERSIONS=(${1//,/ })
+          ;;
+      esac
+    fi
+    shift
+ done
+}
+
+build(){
+ for VERSION in "${VERSIONS[@]}"; do
+    export VERSION=${VERSION};
+    build_image
+    info "Tagging image '$IMAGE:$VERSION' to '$IMAGE:$VERSION-$BUILD_NUM' ..."
+    run_command="docker tag $IMAGE:$VERSION $IMAGE:$VERSION-$BUILD_NUM"
+    test "xtrue" = "x${verbose}" && debug "${run_command}"
+    ${run_command}
+  done
+}
+
+build_image(){
+  test -n "$VERSION" || { error "Please set --version argument to define the version you want to debug"; exit 1;}
+  info "Pulling the base image..."
+  run_command="$(cat ${BASE_DIR}/versions/${VERSION}/Dockerfile | grep FROM | sed 's/^FROM \(.*\)$/docker pull \1/')"
+  ${run_command}
+  info "Building image '$IMAGE:$VERSION' ..."
+  run_command="docker build -t $IMAGE:$VERSION -f $BASE_DIR/versions/$VERSION/Dockerfile ."
+  test "xtrue" = "x${verbose}" && debug "${run_command}"
+  ${run_command}
+}
+
+build_test_image(){
+  test -n "$VERSION" || { error "Please set --version argument to define the version you want to debug"; exit 1;}
+  info "Building image '$IMAGE_TEST:$VERSION' ..."
+  run_command="docker build -t $IMAGE_TEST:$VERSION -f $BASE_DIR/versions/$VERSION/Dockerfile-tests ."
+  test "xtrue" = "x${verbose}" && debug "${run_command}"
+  ${run_command}
+}
+
+run_debug(){
+  test -n "$VERSION" || { error "Please set --version argument to define the version you want to debug"; exit 1;}
+  test -n "$TEST" || { error "Please set --test argument to define the test you want to debug"; exit 1; }
+  test -n "${build}" && { build_image; build_test_image; }
+  info "Running test in debug '$TEST' on version '$VERSION' ..."
+  rm -f .env && echo "VERSION=${VERSION}" > .env
+  run_command="docker-compose -f $BASE_DIR/tests.yml -f $BASE_DIR/debug.yml run --rm $TEST"
+  test "xtrue" = "x${verbose}" && debug "${run_command}"
+  ${run_command}
+  docker-compose -f $BASE_DIR/tests.yml stop
+  docker-compose -f $BASE_DIR/tests.yml rm -f
+}
+
+
+tests(){
+  for VERSION in "${VERSIONS[@]}"; do
+    test -n "${build}" && { build_image; build_test_image; }
+    rm -f .env && echo "VERSION=${VERSION}" > .env
+    for TEST in "${TESTS[@]}"; do
+      info "Running test '$TEST' on version '$VERSION' ..."
+      run_command="docker-compose  -f $BASE_DIR/tests.yml run --rm $TEST"
+      test "xtrue" = "x${verbose}" && debug "${run_command}"
+      ${run_command}
+    done
+    docker-compose -f $BASE_DIR/tests.yml stop
+    docker-compose -f $BASE_DIR/tests.yml rm -f
+  done
+}
+
+release(){
+  test -n "${DOCKERHUB_USERNAME}" || { error "Please set the variable DOCKERHUB_USERNAME to release."; exit 1;}
+  test -n "${DOCKERHUB_PASSWORD}" || { error "Please set the variable DOCKERHUB_PASSWORD to release."; exit 1;}
+  build
+  info "Login to Docker Hub..."
+  docker login --username "${DOCKERHUB_USERNAME}" --password "${DOCKERHUB_PASSWORD}"
+  for VERSION in "${VERSIONS[@]}"; do
+    info "Releasing '$IMAGE:$VERSION' ..."
+    run_command="docker push $IMAGE:$VERSION"
+    test "xtrue" = "x${verbose}" && debug "${run_command}"
+    ${run_command}
+    info "Releasing '$IMAGE:$VERSION-$BUILD_NUM' ..."
+    run_command="docker push $IMAGE:$VERSION-$BUILD_NUM"
+    test "xtrue" = "x${verbose}" && debug "${run_command}"
+    ${run_command}
+  done
+}
+
+# Check command
+command="$1"
+test "$command" = "help" && help
+has_item "$command" "${!valid_commands[@]}" || help
+
+cd $BASE_DIR
+
+VERSIONS=($(ls $BASE_DIR/versions))
+IMAGE="bandsintown/geoip"
+IMAGE_TEST="$IMAGE-test"
+BUILD_NUM="$(git rev-parse --short HEAD)"
+TESTS=(test-image)
+
+# Check programs needed to tests are installed
+type docker >/dev/null 2>&1 || { error "Please install Docker to run tests."; exit 1;}
+type docker-compose >/dev/null 2>&1 || { error "Please install Docker Compose to run tests."; exit 1;}
+
+# Parse options
+parse_opts $*
+
+# Run the command
+case "$command" in
+   help)
+      help;;
+   debug)
+      run_debug $@;;
+   *)
+      eval $*;;
+esac

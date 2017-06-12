@@ -1,0 +1,12 @@
+# This docker-compose yml describe the services to run locally
+version: '2'
+
+# Defines the services
+services:
+
+  # Test image (packages, services, scripts)
+  test-image:
+    image: bandsintown/geoip-test:${VERSION}
+    command: bats /tests/image
+    environment:
+      - VERSION=${VERSION}
