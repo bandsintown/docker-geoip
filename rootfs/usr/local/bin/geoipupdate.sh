@@ -1,6 +1,6 @@
 #!/bin/sh
 
 # Render the template
-cat /etc/geoip/GeoIP.conf.tmpl | sigil -p > /etc/geoip/GeoIP.conf
+cat /usr/etc/GeoIP.conf.tmpl | sigil -p > /usr/etc/GeoIP.conf
 
 geoipupdate -v
