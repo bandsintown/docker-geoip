@@ -11,6 +11,19 @@ EOF
 
 set -e
 
+# Build Triggered when base image has been released
+if [ "$BUILDKITE_SOURCE" == "trigger_job" -a "$BUILDKITE_BRANCH" == 'master' ]; then
+cat <<EOF
+steps:
+  - label: ':hammer: Run tests'
+    command: bin/geoip tests --build
+  - wait
+  - label: ':docker: Release on Dockerhub'
+    command: bin/geoip release
+EOF
+exit 0
+fi
+
 # Master banch before Github release
 if [ "$RELEASE_NAME" == "n/a"  -a "$BUILDKITE_BRANCH" == 'master' ]; then
 cat <<EOF
@@ -57,6 +70,7 @@ steps:
 EOF
 exit 0
 fi
+
 
 # Pull Requests
 cat <<EOF
