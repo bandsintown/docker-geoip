@@ -1,5 +1,10 @@
-[![Build status](https://badge.buildkite.com/0dc51f0f59038e0e947c2be0edbc04c379081027b14fcb964e.svg)](https://buildkite.com/bandsintown/docker-geoip)
+[![dockeri.co](http://dockeri.co/image/bandsintown/geoip)](https://hub.docker.com/r/bandsintown/geoip/)
 
+[![Build status](https://badge.buildkite.com/f78e045c0b561ba33f80f3c996ccfe89b49ade24b832f92bfd.svg)](https://buildkite.com/bandsintown/docker-geoip)
+[![GitHub issues](https://img.shields.io/github/issues/bandsintown/docker-geoip.svg "GitHub issues")](https://github.com/bandsintown/docker-geoip)
+[![GitHub stars](https://img.shields.io/github/stars/bandsintown/docker-geoip.svg "GitHub stars")](https://github.com/bandsintown/docker-geoip)
+[![Docker layers](https://images.microbadger.com/badges/image/bandsintown/geoip.svg)](http://microbadger.com/images/bandsintown/geoip)
+	
 # Maxmind GeoIP 
 
 ## Usage
