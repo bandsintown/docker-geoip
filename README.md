@@ -31,4 +31,12 @@ The following environment variables might be passed to configure [Maxmind GeoIP 
 
 ### Cron
 
-The image is configured to run a cron daemon updating the Maxming GeoIP database [each day at 1AM](rootfs/root/crontabs/root).
+The image is configured to run a cron daemon updating the Maxmind GeoIP database [each day at 1AM](rootfs/root/crontabs/root).
+
+If you don't want to have a daemon updating regularly the Maxmind GeoIP database you can just run the image to update the image once:
+
+```bash
+docker run -d bandsintown/geoip /usr/local/bin/geoipupdate.sh
+```
+
+The container will start and stop but the Maxmind GeoIP database will be updated in `/usr/share/GeoIP` directory.  
